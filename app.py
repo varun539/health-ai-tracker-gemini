@@ -7,7 +7,7 @@ import json
 import google.generativeai as genai
 import joblib
 import lightgbm as lgb
-from sklearn.base import BaseEstimator
+
 
 
 # ----------------------
@@ -208,5 +208,6 @@ if st.button("💾 Save & Get AI Advice"):
 
     except Exception as e:
         st.error(f"❌ Unexpected Error: {e}")
+
 
 
