@@ -33,13 +33,13 @@ except Exception as e:
     connection = None
 
 # ----------------------
-# Load Model
+# Load Trained Model
 # ----------------------
 try:
     model = joblib.load("fitness_model.pkl")
     st.success("✅ Model Loaded Successfully")
 except Exception as e:
-    st.error(f"❌ Model Load Error: {e}")
+    st.error(f"❌ Error Loading Model: {e}")
     model = None
 
 # ----------------------
@@ -55,7 +55,6 @@ except Exception as e:
 # User Input
 # ----------------------
 st.subheader("🏋️ Enter Your Workout Data")
-
 col1, col2, col3 = st.columns(3)
 with col1:
     user_id = st.number_input("User ID", min_value=1, step=1, value=1)
@@ -90,12 +89,15 @@ if st.button("💾 Save & Get AI Advice"):
             # Derived metrics
             bmi = round(weight / (height ** 2), 2)
             hydration_need = round(weight * 0.04, 2)
-            gender_val = 1 if gender == "Male" else 0
-            workout_map = {"HIIT": [1,0,0,0], "Strength":[0,1,0,0], "Yoga":[0,0,1,0], "Cardio":[0,0,0,1]}
-            wt_hi, wt_strength, wt_yoga, wt_cardio = workout_map[workout_type]
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            gender_male = 1 if gender == "Male" else 0
 
-            # Build feature DataFrame for model (same as training)
+            # One-hot encoding for Workout_Type
+            wt_hi = 1 if workout_type == "HIIT" else 0
+            wt_strength = 1 if workout_type == "Strength" else 0
+            wt_yoga = 1 if workout_type == "Yoga" else 0
+            wt_cardio = 1 if workout_type == "Cardio" else 0
+
+            # Prepare DataFrame exactly as in training
             X_pred = pd.DataFrame([{
                 'Age': age,
                 'Weight (kg)': weight,
@@ -109,50 +111,54 @@ if st.button("💾 Save & Get AI Advice"):
                 'Workout_Frequency (days/week)': workout_freq,
                 'BMI': bmi,
                 'hydration_need': hydration_need,
-                'Gender_Female': 0 if gender_val==1 else 1,  # One-hot from training (drop first)
+                'Gender_Male': gender_male,
+                'Workout_Type_HIIT': wt_hi,
                 'Workout_Type_Strength': wt_strength,
                 'Workout_Type_Yoga': wt_yoga,
                 'Workout_Type_Cardio': wt_cardio,
-                'Workout_Type_HIIT': wt_hi,
                 'stretch_score': stretch_score
             }])
 
-            # Prediction
+            # Predict Recovery Time
             recovery_time = float(model.predict(X_pred)[0])
             st.success(f"🔥 Predicted Recovery Time: {recovery_time:.2f} hours")
 
             # Save to MySQL
-            if connection:
+            if connection is not None:
                 cursor = connection.cursor()
                 cursor.execute("""
                     INSERT INTO workout_input (
                         user_id, Age, Weight_kg, Height_m, Max_BPM, Avg_BPM, Resting_BPM,
                         Session_Duration_hours, Gender, Workout_Type, Fat_Percentage,
                         Water_Intake_liters, Workout_Frequency_days_week, BMI,
-                        Hydration_Need, Workout_Type_HIIT, Workout_Type_Strength,
-                        Workout_Type_Yoga, Workout_Type_Cardio, Stretch_Score,
-                        Recovery_Time, timestamp
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        Hydration_Need, Gender_Male, Workout_Type_HIIT,
+                        Workout_Type_Strength, Workout_Type_Yoga, Workout_Type_Cardio,
+                        Stretch_Score, timestamp, Recovery_Time
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON DUPLICATE KEY UPDATE
                         Age=VALUES(Age), Weight_kg=VALUES(Weight_kg), Height_m=VALUES(Height_m),
                         Max_BPM=VALUES(Max_BPM), Avg_BPM=VALUES(Avg_BPM), Resting_BPM=VALUES(Resting_BPM),
                         Session_Duration_hours=VALUES(Session_Duration_hours), Gender=VALUES(Gender),
                         Workout_Type=VALUES(Workout_Type), Fat_Percentage=VALUES(Fat_Percentage),
                         Water_Intake_liters=VALUES(Water_Intake_liters), Workout_Frequency_days_week=VALUES(Workout_Frequency_days_week),
-                        BMI=VALUES(BMI), Hydration_Need=VALUES(Hydration_Need), Workout_Type_HIIT=VALUES(Workout_Type_HIIT),
-                        Workout_Type_Strength=VALUES(Workout_Type_Strength), Workout_Type_Yoga=VALUES(Workout_Type_Yoga),
-                        Workout_Type_Cardio=VALUES(Workout_Type_Cardio), Stretch_Score=VALUES(Stretch_Score),
-                        Recovery_Time=VALUES(Recovery_Time), timestamp=VALUES(timestamp)
+                        BMI=VALUES(BMI), Hydration_Need=VALUES(Hydration_Need), Gender_Male=VALUES(Gender_Male),
+                        Workout_Type_HIIT=VALUES(Workout_Type_HIIT), Workout_Type_Strength=VALUES(Workout_Type_Strength),
+                        Workout_Type_Yoga=VALUES(Workout_Type_Yoga), Workout_Type_Cardio=VALUES(Workout_Type_Cardio),
+                        Stretch_Score=VALUES(Stretch_Score), Recovery_Time=VALUES(Recovery_Time),
+                        timestamp=VALUES(timestamp)
                 """, (
                     user_id, age, weight, height, max_bpm, avg_bpm, resting_bpm,
-                    session_duration, gender, workout_type, fat_percentage, water_intake,
-                    workout_freq, bmi, hydration_need, wt_hi, wt_strength, wt_yoga, wt_cardio,
-                    stretch_score, recovery_time, timestamp
+                    session_duration, gender, workout_type, fat_percentage,
+                    water_intake, workout_freq, bmi, hydration_need, gender_male,
+                    wt_hi, wt_strength, wt_yoga, wt_cardio, stretch_score,
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"), recovery_time
                 ))
                 connection.commit()
                 st.success("✅ Data Saved to MySQL")
 
+            # ----------------------
             # Gemini AI Advice
+            # ----------------------
             prompt = f"""
             You are a professional AI fitness coach.
             Based on this data:
@@ -167,11 +173,13 @@ if st.button("💾 Save & Get AI Advice"):
             """
             model_gem = genai.GenerativeModel("gemini-2.5-flash")
             response = model_gem.generate_content(prompt)
+            text = response.text
+
             try:
-                report = json.loads(response.text)
+                report = json.loads(text)
             except:
                 report = {
-                    "nutrition_plan": response.text,
+                    "nutrition_plan": text,
                     "workout_tips": "",
                     "recovery_advice": "",
                     "motivation": "Keep pushing forward 💪"
