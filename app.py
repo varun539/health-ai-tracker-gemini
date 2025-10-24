@@ -34,18 +34,35 @@ except Exception as e:
 
 # ----------------------
 # Google Sheets Setup
+# # ----------------------
+# try:
+#     gs = st.secrets["google_sheets"]
+#     credentials = Credentials.from_service_account_file(
+#         gs["service_account_file"],
+#         scopes=["https://www.googleapis.com/auth/spreadsheets"]
+#     )
+#     gc = gspread.authorize(credentials)
+#     worksheet = gc.open_by_url(gs["url"]).sheet1
+#     st.success("✅ Google Sheets Connected")
+# except Exception as e:
+#     st.error(f"❌ Google Sheets setup error: {e}")
+
+# ----------------------
+# Google Sheets Setup (Cloud-safe)
+# ----------------------
+# ----------------------
+# Google Sheets Setup (Cloud-safe)
 # ----------------------
 try:
     gs = st.secrets["google_sheets"]
-    credentials = Credentials.from_service_account_file(
-        gs["service_account_file"],
-        scopes=["https://www.googleapis.com/auth/spreadsheets"]
-    )
+    credentials = Credentials.from_service_account_info(gs, scopes=["https://www.googleapis.com/auth/spreadsheets"])
     gc = gspread.authorize(credentials)
     worksheet = gc.open_by_url(gs["url"]).sheet1
     st.success("✅ Google Sheets Connected")
 except Exception as e:
     st.error(f"❌ Google Sheets setup error: {e}")
+
+
 
 # ----------------------
 # Load Model
@@ -208,3 +225,4 @@ if st.button("💾 Save & Get AI Advice"):
     except Exception as e:
 
         st.error(f"❌ Unexpected Error: {e}")
+
