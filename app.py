@@ -35,7 +35,7 @@ except Exception as e:
 # Load Model
 # ----------------------
 try:
-    model = joblib.load("fitness_model.joblib")
+    model = joblib.load("fitness_model.pkl")
     st.success("✅ Model Loaded Successfully")
 except Exception as e:
     st.error(f"❌ Model Load Error: {e}")
@@ -191,3 +191,4 @@ if st.button("💾 Save & Get AI Advice"):
 
     except Exception as e:
         st.error(f"❌ Unexpected Error: {e}")
+
