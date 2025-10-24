@@ -5,10 +5,7 @@ import joblib
 import pandas as pd
 import json
 import google.generativeai as genai
-import joblib
-import lightgbm as lgb
-
-
+import numpy as np
 
 # ----------------------
 # Page Setup
@@ -35,17 +32,14 @@ except Exception as e:
     st.error(f"❌ MySQL connection error: {e}")
     connection = None
 
+# ----------------------
+# Load Model
+# ----------------------
 try:
     model = joblib.load("fitness_model.pkl")
-    
-    # If model isn’t a LightGBM Booster or sklearn estimator, reload properly
-    if not hasattr(model, "predict"):
-        print("⚠️ Model reloaded using LightGBM Booster interface")
-        model = lgb.Booster(model_file="fitness_model.pkl")
-        
-    print("✅ Model Loaded Successfully")
+    st.success("✅ Model Loaded Successfully")
 except Exception as e:
-    print(f"❌ Error Loading Model: {e}")
+    st.error(f"❌ Model Load Error: {e}")
     model = None
 
 # ----------------------
@@ -96,13 +90,12 @@ if st.button("💾 Save & Get AI Advice"):
             # Derived metrics
             bmi = round(weight / (height ** 2), 2)
             hydration_need = round(weight * 0.04, 2)
-            gender_male = 1 if gender == "Male" else 0
-            workout_dict = {"HIIT": [1, 0, 0, 0], "Strength": [0, 1, 0, 0],
-                            "Yoga": [0, 0, 1, 0], "Cardio": [0, 0, 0, 1]}
-            wt_hi, wt_strength, wt_yoga, wt_cardio = workout_dict[workout_type]
+            gender_val = 1 if gender == "Male" else 0
+            workout_map = {"HIIT": [1,0,0,0], "Strength":[0,1,0,0], "Yoga":[0,0,1,0], "Cardio":[0,0,0,1]}
+            wt_hi, wt_strength, wt_yoga, wt_cardio = workout_map[workout_type]
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            # ✅ Keep features consistent with model (adjust columns to your training)
+            # Build feature DataFrame for model (same as training)
             X_pred = pd.DataFrame([{
                 'Age': age,
                 'Weight (kg)': weight,
@@ -116,56 +109,50 @@ if st.button("💾 Save & Get AI Advice"):
                 'Workout_Frequency (days/week)': workout_freq,
                 'BMI': bmi,
                 'hydration_need': hydration_need,
-                'Gender_Male': gender_male,
-                'Workout_Type_HIIT': wt_hi,
+                'Gender_Female': 0 if gender_val==1 else 1,  # One-hot from training (drop first)
                 'Workout_Type_Strength': wt_strength,
                 'Workout_Type_Yoga': wt_yoga,
                 'Workout_Type_Cardio': wt_cardio,
+                'Workout_Type_HIIT': wt_hi,
                 'stretch_score': stretch_score
             }])
 
-            # ✅ Safe predict
-            # recovery_time = float(model.predict(X_pred, predict_disable_shape_check=True)[0])
+            # Prediction
             recovery_time = float(model.predict(X_pred)[0])
-
             st.success(f"🔥 Predicted Recovery Time: {recovery_time:.2f} hours")
 
-            # ✅ Save to MySQL
-            if connection is not None:
+            # Save to MySQL
+            if connection:
                 cursor = connection.cursor()
                 cursor.execute("""
                     INSERT INTO workout_input (
                         user_id, Age, Weight_kg, Height_m, Max_BPM, Avg_BPM, Resting_BPM,
                         Session_Duration_hours, Gender, Workout_Type, Fat_Percentage,
                         Water_Intake_liters, Workout_Frequency_days_week, BMI,
-                        Hydration_Need, Gender_Male, Workout_Type_HIIT,
-                        Workout_Type_Strength, Workout_Type_Yoga, Workout_Type_Cardio,
-                        Stretch_Score, timestamp, Recovery_Time
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        Hydration_Need, Workout_Type_HIIT, Workout_Type_Strength,
+                        Workout_Type_Yoga, Workout_Type_Cardio, Stretch_Score,
+                        Recovery_Time, timestamp
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON DUPLICATE KEY UPDATE
                         Age=VALUES(Age), Weight_kg=VALUES(Weight_kg), Height_m=VALUES(Height_m),
                         Max_BPM=VALUES(Max_BPM), Avg_BPM=VALUES(Avg_BPM), Resting_BPM=VALUES(Resting_BPM),
                         Session_Duration_hours=VALUES(Session_Duration_hours), Gender=VALUES(Gender),
                         Workout_Type=VALUES(Workout_Type), Fat_Percentage=VALUES(Fat_Percentage),
                         Water_Intake_liters=VALUES(Water_Intake_liters), Workout_Frequency_days_week=VALUES(Workout_Frequency_days_week),
-                        BMI=VALUES(BMI), Hydration_Need=VALUES(Hydration_Need), Gender_Male=VALUES(Gender_Male),
-                        Workout_Type_HIIT=VALUES(Workout_Type_HIIT), Workout_Type_Strength=VALUES(Workout_Type_Strength),
-                        Workout_Type_Yoga=VALUES(Workout_Type_Yoga), Workout_Type_Cardio=VALUES(Workout_Type_Cardio),
-                        Stretch_Score=VALUES(Stretch_Score), Recovery_Time=VALUES(Recovery_Time),
-                        timestamp=VALUES(timestamp)
+                        BMI=VALUES(BMI), Hydration_Need=VALUES(Hydration_Need), Workout_Type_HIIT=VALUES(Workout_Type_HIIT),
+                        Workout_Type_Strength=VALUES(Workout_Type_Strength), Workout_Type_Yoga=VALUES(Workout_Type_Yoga),
+                        Workout_Type_Cardio=VALUES(Workout_Type_Cardio), Stretch_Score=VALUES(Stretch_Score),
+                        Recovery_Time=VALUES(Recovery_Time), timestamp=VALUES(timestamp)
                 """, (
                     user_id, age, weight, height, max_bpm, avg_bpm, resting_bpm,
-                    session_duration, gender, workout_type, fat_percentage,
-                    water_intake, workout_freq, bmi, hydration_need, gender_male,
-                    wt_hi, wt_strength, wt_yoga, wt_cardio, stretch_score,
-                    timestamp, recovery_time
+                    session_duration, gender, workout_type, fat_percentage, water_intake,
+                    workout_freq, bmi, hydration_need, wt_hi, wt_strength, wt_yoga, wt_cardio,
+                    stretch_score, recovery_time, timestamp
                 ))
                 connection.commit()
                 st.success("✅ Data Saved to MySQL")
 
-            # ----------------------
             # Gemini AI Advice
-            # ----------------------
             prompt = f"""
             You are a professional AI fitness coach.
             Based on this data:
@@ -180,13 +167,11 @@ if st.button("💾 Save & Get AI Advice"):
             """
             model_gem = genai.GenerativeModel("gemini-2.5-flash")
             response = model_gem.generate_content(prompt)
-            text = response.text
-
             try:
-                report = json.loads(text)
+                report = json.loads(response.text)
             except:
                 report = {
-                    "nutrition_plan": text,
+                    "nutrition_plan": response.text,
                     "workout_tips": "",
                     "recovery_advice": "",
                     "motivation": "Keep pushing forward 💪"
@@ -200,7 +185,3 @@ if st.button("💾 Save & Get AI Advice"):
 
     except Exception as e:
         st.error(f"❌ Unexpected Error: {e}")
-
-
-
-
