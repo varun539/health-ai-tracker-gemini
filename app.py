@@ -35,16 +35,6 @@ except Exception as e:
     st.error(f"❌ MySQL connection error: {e}")
     connection = None
 
-# ----------------------
-# Load Model
-# # ----------------------
-# try:
-#     model = joblib.load("fitness_model.pkl")
-#     st.success("✅ Model Loaded Successfully")
-# except Exception as e:
-#     st.error(f"❌ Model Load Error: {e}")
-#     model = None
-# Load the model safely
 try:
     model = joblib.load("fitness_model.pkl")
     
@@ -135,7 +125,9 @@ if st.button("💾 Save & Get AI Advice"):
             }])
 
             # ✅ Safe predict
-            recovery_time = float(model.predict(X_pred, predict_disable_shape_check=True)[0])
+            # recovery_time = float(model.predict(X_pred, predict_disable_shape_check=True)[0])
+            recovery_time = float(model.predict(X_pred)[0])
+
             st.success(f"🔥 Predicted Recovery Time: {recovery_time:.2f} hours")
 
             # ✅ Save to MySQL
@@ -208,6 +200,7 @@ if st.button("💾 Save & Get AI Advice"):
 
     except Exception as e:
         st.error(f"❌ Unexpected Error: {e}")
+
 
 
 
