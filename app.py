@@ -5,6 +5,10 @@ import joblib
 import pandas as pd
 import json
 import google.generativeai as genai
+import joblib
+import lightgbm as lgb
+from sklearn.base import BaseEstimator
+
 
 # ----------------------
 # Page Setup
@@ -33,12 +37,25 @@ except Exception as e:
 
 # ----------------------
 # Load Model
-# ----------------------
+# # ----------------------
+# try:
+#     model = joblib.load("fitness_model.pkl")
+#     st.success("✅ Model Loaded Successfully")
+# except Exception as e:
+#     st.error(f"❌ Model Load Error: {e}")
+#     model = None
+# Load the model safely
 try:
     model = joblib.load("fitness_model.pkl")
-    st.success("✅ Model Loaded Successfully")
+    
+    # If model isn’t a LightGBM Booster or sklearn estimator, reload properly
+    if not hasattr(model, "predict"):
+        print("⚠️ Model reloaded using LightGBM Booster interface")
+        model = lgb.Booster(model_file="fitness_model.pkl")
+        
+    print("✅ Model Loaded Successfully")
 except Exception as e:
-    st.error(f"❌ Model Load Error: {e}")
+    print(f"❌ Error Loading Model: {e}")
     model = None
 
 # ----------------------
@@ -191,4 +208,5 @@ if st.button("💾 Save & Get AI Advice"):
 
     except Exception as e:
         st.error(f"❌ Unexpected Error: {e}")
+
 
