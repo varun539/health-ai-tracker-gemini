@@ -26,8 +26,3 @@ Health AI Tracker is an innovative fitness application that predicts recovery ti
 - Get AI-generated nutrition plans, workout tips, and recovery advice.
 - Save data to MySQL and sync with Google Sheets.
 
-## Setup
-1. **Clone Repo**:
-   ```bash
-   git clone https://github.com/yourusername/health-ai-tracker-gemini.git
-   cd health-ai-tracker-gemini
