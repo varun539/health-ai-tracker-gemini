@@ -1,9 +1,0 @@
-streamlit
-mysql-connector-python
-gspread
-google-auth
-joblib
-lightgbm
-pandas
-numpy
-google-generativeai
