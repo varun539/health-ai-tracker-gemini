@@ -1,0 +1,9 @@
+streamlit
+pandas
+numpy
+scikit-learn
+lightgbm
+google-generativeai
+gspread
+oauth2client
+joblib
